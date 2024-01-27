@@ -20,19 +20,59 @@ headers = {
 def salelist():
     try:
         order_id = request.args.get('order_id', None)
+        email = request.args.get('email', None)
+        name = request.args.get('name', None)
+
         headers = {
-            'api-auth-applicationkey':mysec.API_AUTH_APPLICATION_KEY,
+            'api-auth-applicationkey': mysec.API_AUTH_APPLICATION_KEY,
             'api-auth-accountid': mysec.API_AUTH_ACCOUNT_ID
-        } 
-        url = f'https://inventory.dearsystems.com/ExternalApi/v2/saleList?Search={order_id}'
-        response = requests.request("GET", url, headers=headers).json()
-        SaleList = response.get('SaleList')
-        top_result = SaleList[0] if SaleList else None
-        
-        return jsonify({'data': top_result, 'status': True})
+        }
+
+        # If order_id is provided, fetch the sale order directly
+        if order_id:
+            url = f'https://inventory.dearsystems.com/ExternalApi/v2/saleList?Search={order_id}'
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                return jsonify({'error': 'Failed to fetch sale order'}), 500
+
+            SaleList = response.json().get('SaleList', [])
+            top_result = SaleList[0] if SaleList else None
+            return jsonify({'data': top_result, 'status': True})
+
+        # If email and name are provided, find customer ID and then fetch sale order
+        elif email and name:
+            print(email, name, "2nd case")
+            customer_list_url = f"https://inventory.dearsystems.com/ExternalApi/v2/customer?Name={name}"
+            customer_response = requests.get(customer_list_url, headers=headers)
+            if customer_response.status_code != 200:
+                return jsonify({'error': 'Failed to fetch customer data'}), 500
+
+            customers = customer_response.json().get('CustomerList', [])
+            customer_id = next((customer['ID'] for customer in customers 
+                                for contact in customer.get('Contacts', []) 
+                                if contact['Email'] == email), None)
+
+            if not customer_id:
+                return jsonify({'error': 'Customer not found'}), 404
+
+            sale_list_url = f"https://inventory.dearsystems.com/ExternalApi/v2/saleList?CustomerID={customer_id}"
+            sale_response = requests.get(sale_list_url, headers=headers)
+            if sale_response.status_code != 200:
+                return jsonify({'error': 'Failed to fetch sale orders'}), 500
+
+            sales = sale_response.json().get('SaleList', [])
+            if not sales:
+                return jsonify({'error': 'No sale orders found for this customer'}), 404
+
+            top_sale_order = sales[0]
+            return jsonify(top_sale_order)
+
+        else:
+            return jsonify({'error': 'Order ID or Email and Name are required'}), 400
+
     except Exception as e:
-        logging.info("Expection raised in salelist %s", e)
-        return jsonify({'data': None, 'status': False, 'message': 'Exception'})
+        logging.info("Exception raised in salelist %s", e)
+        return jsonify({'error': str(e), 'status': False, 'message': 'Exception'})
 
 
 @app.route("/app/1/get_top_sale_order_by_email", methods=['GET'])
