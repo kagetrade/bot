@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify,Response,send_from_directory
 import mysec
 import requests
 import logging
+import re
 
 app = Flask(__name__)
 
@@ -19,8 +20,7 @@ headers = {
 @app.route('/app/1/salelist', methods=['GET'])
 def salelist():
     try:
-        order_id = request.args.get('order_id', None)
-        email = request.args.get('email', None)
+        order_or_email = request.args.get('order_id', None)
         name = request.args.get('name', None)
 
         headers = {
@@ -29,7 +29,8 @@ def salelist():
         }
 
         # If order_id is provided, fetch the sale order directly
-        if order_id:
+        if not is_email(order_or_email):
+            order_id = order_or_email
             url = f'https://inventory.dearsystems.com/ExternalApi/v2/saleList?Search={order_id}'
             response = requests.get(url, headers=headers)
             if response.status_code != 200:
@@ -40,8 +41,8 @@ def salelist():
             return jsonify({'data': top_result, 'status': True})
 
         # If email and name are provided, find customer ID and then fetch sale order
-        elif email and name:
-            print(email, name, "2nd case")
+        elif is_email(order_or_email):
+            email = order_or_email
             customer_list_url = f"https://inventory.dearsystems.com/ExternalApi/v2/customer?Name={name}"
             customer_response = requests.get(customer_list_url, headers=headers)
             if customer_response.status_code != 200:
@@ -111,6 +112,9 @@ def get_top_sale_order_by_email():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def is_email(s):
+    return re.match(r"[^@]+@[^@]+\.[^@]+", s) is not None
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5005, debug=True)
