@@ -66,7 +66,7 @@ def salelist():
                 return jsonify({'error': 'No sale orders found for this customer'}), 404
 
             top_sale_order = sales[0]
-            return jsonify(top_sale_order)
+            return jsonify({"data":top_sale_order, "status":True})
 
         else:
             return jsonify({'error': 'Order ID or Email and Name are required'}), 400
