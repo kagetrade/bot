@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify,Response,send_from_directory
+from urllib.parse import quote
 import mysec
 import requests
 import logging
@@ -22,7 +23,6 @@ def salelist():
     try:
         order_or_email = request.args.get('order_id', None)
         name = request.args.get('name', None)
-
         headers = {
             'api-auth-applicationkey': mysec.API_AUTH_APPLICATION_KEY,
             'api-auth-accountid': mysec.API_AUTH_ACCOUNT_ID
@@ -43,10 +43,13 @@ def salelist():
         # If email and name are provided, find customer ID and then fetch sale order
         elif is_email(order_or_email):
             email = order_or_email
+            url_encoded_email = quote(email)
+            get_user_name = requests.get(f'https://kagetradinglimited-org.myfreshworks.com/crm/sales/api/search?q={url_encoded_email}&include=contact', headers = {'Authorization':'Token token=JP36RY3T26kYy4t4we4QIw'})
+            name = get_user_name.json()[0].get('name')
             customer_list_url = f"https://inventory.dearsystems.com/ExternalApi/v2/customer?Name={name}"
             customer_response = requests.get(customer_list_url, headers=headers)
             if customer_response.status_code != 200:
-                return jsonify({'error': 'Failed to fetch customer data'}), 500
+                return jsonify({'error': 'Failed to fetch customer data'}), 404
 
             customers = customer_response.json().get('CustomerList', [])
             customer_id = next((customer['ID'] for customer in customers 
